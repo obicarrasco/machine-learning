@@ -24,17 +24,17 @@ wheels/
 .ipynb_checkpoints
 *.ipynb_checkpoints/
 
-# Data
-data/*.csv
-!data/.gitkeep
+# Data — se mantienen el dataset original y el limpio (el profesor los pidió explícitamente);
+# solo se ignoran los splits de train/test, que son fácilmente regenerables con random_state=42.
+data/X_train.csv
+data/X_test.csv
+data/y_train.csv
+data/y_test.csv
 
-# Models
-models/*.pkl
-!models/.gitkeep
+# Models — se mantiene el pipeline de preprocesamiento y el modelo final entrenado
+# (son parte de los entregables, no archivos temporales)
 
-# Images
-images/*.png
-!images/.gitkeep
+# Images — se mantienen todos los gráficos, el README los referencia directamente
 
 # Environment
 venv/
