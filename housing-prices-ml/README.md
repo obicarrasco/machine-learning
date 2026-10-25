@@ -87,6 +87,111 @@ Si el mejor modelo entrenado **no alcanza estos umbrales**, se considerará nece
 - **Tipos de variables:** mezcla de variables numéricas (superficies, año de construcción, cantidad de baños, etc.) y categóricas (calidad de materiales, tipo de barrio, tipo de garage, etc.)
 - **Herramientas y librerías:** Python 3, pandas, numpy, matplotlib, seaborn, scikit-learn, Jupyter Notebook
 
+
+### 7.1 Especificación detallada de las variables
+
+**Variables excluidas del modelamiento:**
+
+| Variable | Tipo de dato | Motivo de exclusión |
+|---|---|---|
+| `Order` | int64 (discreta) | Número correlativo de observación, sin relación con el precio |
+| `PID` | int64 (nominal) | Identificador catastral (Parcel ID) de la propiedad, sin valor predictivo |
+
+**Variable objetivo:**
+
+| Variable | Tipo de dato | Tipo de variable | Descripción |
+|---|---|---|---|
+| `SalePrice` | int64 (continua) | Numérica continua | Precio de venta de la vivienda en dólares (variable a predecir) |
+| `SalePrice_log` | float64 (continua) | Numérica continua, **derivada** | `log1p(SalePrice)`. No es una variable original del dataset; se crea en la sección 9.4 para corregir la asimetría del precio y usarla como objetivo real del entrenamiento |
+
+**Variables predictoras numéricas (36):**
+
+| Variable | Tipo de dato | Tipo de variable | Descripción |
+|---|---|---|---|
+| `MS SubClass` | int64 | Nominal (codificada como número) | Código que identifica el tipo de vivienda (ej. 1 piso, 2 pisos, duplex, con/sin ático) |
+| `Lot Frontage` | float64 | Continua | Pies lineales de calle conectados a la propiedad |
+| `Lot Area` | int64 | Continua | Superficie del lote en pies cuadrados |
+| `Overall Qual` | int64 | Ordinal (escala 1–10) | Calidad general de materiales y terminaciones de la vivienda |
+| `Overall Cond` | int64 | Ordinal (escala 1–10) | Condición general de la vivienda |
+| `Year Built` | int64 | Discreta | Año de construcción original |
+| `Year Remod/Add` | int64 | Discreta | Año de la última remodelación (igual a Year Built si nunca se remodeló) |
+| `Mas Vnr Area` | float64 | Continua | Superficie de revestimiento de mampostería (m² en pies²) |
+| `BsmtFin SF 1` | float64 | Continua | Pies cuadrados terminados del sótano, tipo 1 |
+| `BsmtFin SF 2` | float64 | Continua | Pies cuadrados terminados del sótano, tipo 2 (si existe un segundo tipo) |
+| `Bsmt Unf SF` | float64 | Continua | Pies cuadrados sin terminar del sótano |
+| `Total Bsmt SF` | float64 | Continua | Superficie total del sótano |
+| `1st Flr SF` | int64 | Continua | Superficie del primer piso |
+| `2nd Flr SF` | int64 | Continua | Superficie del segundo piso |
+| `Low Qual Fin SF` | int64 | Continua | Superficie terminada de baja calidad (todos los pisos) |
+| `Gr Liv Area` | int64 | Continua | Superficie habitable sobre el nivel del suelo |
+| `Bsmt Full Bath` | float64 | Discreta | Baños completos en el sótano |
+| `Bsmt Half Bath` | float64 | Discreta | Medios baños en el sótano |
+| `Full Bath` | int64 | Discreta | Baños completos sobre el nivel del suelo |
+| `Half Bath` | int64 | Discreta | Medios baños sobre el nivel del suelo |
+| `Bedroom AbvGr` | int64 | Discreta | Dormitorios sobre el nivel del suelo |
+| `Kitchen AbvGr` | int64 | Discreta | Cocinas sobre el nivel del suelo |
+| `TotRms AbvGrd` | int64 | Discreta | Total de habitaciones sobre el nivel del suelo (no incluye baños) |
+| `Fireplaces` | int64 | Discreta | Cantidad de chimeneas |
+| `Garage Yr Blt` | float64 | Discreta | Año de construcción del garage |
+| `Garage Cars` | float64 | Discreta | Capacidad del garage en cantidad de autos |
+| `Garage Area` | float64 | Continua | Superficie del garage en pies cuadrados |
+| `Wood Deck SF` | int64 | Continua | Superficie de terraza de madera |
+| `Open Porch SF` | int64 | Continua | Superficie de porche abierto |
+| `Enclosed Porch` | int64 | Continua | Superficie de porche cerrado |
+| `3-Ssn Porch` | int64 | Continua | Superficie de porche de tres estaciones |
+| `Screen Porch` | int64 | Continua | Superficie de porche con mosquitero |
+| `Pool Area` | int64 | Continua | Superficie de piscina |
+| `Misc Val` | int64 | Continua | Valor en dólares de alguna característica miscelánea no cubierta en otras variables |
+| `Mo Sold` | int64 | Discreta | Mes de venta |
+| `Yr Sold` | int64 | Discreta | Año de venta |
+
+**Variables predictoras categóricas (43):**
+
+| Variable | Tipo de dato | Tipo de variable | Descripción |
+|---|---|---|---|
+| `MS Zoning` | object | Nominal | Clasificación general de zonificación de la venta (residencial, comercial, etc.) |
+| `Street` | object | Nominal | Tipo de acceso vial a la propiedad (pavimentado/tierra) |
+| `Alley` | object | Nominal | Tipo de acceso por callejón (o "None" si no tiene) |
+| `Lot Shape` | object | Ordinal | Regularidad de la forma del lote (regular a muy irregular) |
+| `Land Contour` | object | Nominal | Planitud del terreno |
+| `Utilities` | object | Ordinal | Tipo de servicios básicos disponibles |
+| `Lot Config` | object | Nominal | Configuración del lote (esquina, interior, cul-de-sac, etc.) |
+| `Land Slope` | object | Ordinal | Pendiente del terreno |
+| `Neighborhood` | object | Nominal (alta dimensionalidad) | Barrio dentro de los límites de la ciudad de Ames |
+| `Condition 1` | object | Nominal | Proximidad a condiciones relevantes (vía principal, ferrocarril, parque, etc.) |
+| `Condition 2` | object | Nominal | Segunda condición relevante, si aplica |
+| `Bldg Type` | object | Nominal | Tipo de vivienda (unifamiliar, dúplex, townhouse, etc.) |
+| `House Style` | object | Nominal | Estilo de la vivienda (1 piso, 2 pisos, con altillo, etc.) |
+| `Roof Style` | object | Nominal | Tipo de techo |
+| `Roof Matl` | object | Nominal | Material del techo |
+| `Exterior 1st` | object | Nominal (alta dimensionalidad) | Material de revestimiento exterior principal |
+| `Exterior 2nd` | object | Nominal (alta dimensionalidad) | Segundo material de revestimiento exterior, si aplica |
+| `Mas Vnr Type` | object | Nominal | Tipo de revestimiento de mampostería |
+| `Exter Qual` | object | Ordinal | Calidad del material exterior (Ex/Gd/TA/Fa/Po) |
+| `Exter Cond` | object | Ordinal | Condición actual del material exterior |
+| `Foundation` | object | Nominal | Tipo de fundación de la vivienda |
+| `Bsmt Qual` | object | Ordinal | Altura/calidad del sótano |
+| `Bsmt Cond` | object | Ordinal | Condición general del sótano |
+| `Bsmt Exposure` | object | Ordinal | Exposición del sótano (walkout, jardín, sin exposición) |
+| `BsmtFin Type 1` | object | Ordinal | Calidad del área terminada del sótano, tipo 1 |
+| `BsmtFin Type 2` | object | Ordinal | Calidad del área terminada del sótano, tipo 2 |
+| `Heating` | object | Nominal | Tipo de sistema de calefacción |
+| `Heating QC` | object | Ordinal | Calidad y condición de la calefacción |
+| `Central Air` | object | Nominal (binaria) | Aire acondicionado central (sí/no) |
+| `Electrical` | object | Ordinal | Tipo de sistema eléctrico |
+| `Kitchen Qual` | object | Ordinal | Calidad de la cocina |
+| `Functional` | object | Ordinal | Funcionalidad de la vivienda (de típica a severamente dañada) |
+| `Fireplace Qu` | object | Ordinal | Calidad de la(s) chimenea(s) |
+| `Garage Type` | object | Nominal | Ubicación/tipo del garage |
+| `Garage Finish` | object | Ordinal | Terminación interior del garage |
+| `Garage Qual` | object | Ordinal | Calidad del garage |
+| `Garage Cond` | object | Ordinal | Condición del garage |
+| `Paved Drive` | object | Ordinal | Si el acceso vehicular está pavimentado |
+| `Pool QC` | object | Ordinal | Calidad de la piscina (o "None" si no tiene) |
+| `Fence` | object | Ordinal | Calidad del cierre perimetral (o "None" si no tiene) |
+| `Misc Feature` | object | Nominal | Característica miscelánea no cubierta en otras categorías |
+| `Sale Type` | object | Nominal | Tipo de venta (convencional, hipoteca asumida, nueva construcción, etc.) |
+| `Sale Condition` | object | Nominal | Condición de la venta (normal, familiar, liquidación, etc.) |
 ---
 
 ## 8. Análisis Exploratorio de los Datos (EDA)
@@ -109,6 +214,18 @@ Las variables numéricas con mayor correlación positiva con el precio de venta 
 - `Garage Cars` (capacidad del garage): 0.64
 - `Garage Area` (área del garage): 0.62
 - `Total Bsmt SF` (área total del sótano): 0.61
+
+### Detección sistemática de outliers (todas las variables numéricas)
+
+Para evitar limitar el análisis a solo un par de variables elegidas de forma manual, se aplicó el método del **rango intercuartílico (IQR)** a las **37 variables numéricas** del dataset: un valor se considera atípico si cae fuera de `[Q1 - 1.5×IQR, Q3 + 1.5×IQR]`.
+
+**Resultado:** 33 de las 37 variables numéricas presentan al menos un outlier según este criterio. Sin embargo, el número de outliers **no debe interpretarse como un indicador uniforme de "mala calidad de datos"**, ya que responde a distintos patrones según el tipo de variable:
+
+- **Variables "zero-inflated" (concentradas en 0):** `Enclosed Porch`, `BsmtFin SF 2`, `Screen Porch`, `Mas Vnr Area`, `Open Porch SF` y `Misc Val` encabezan el ranking, con entre 100 y 459 outliers. Esto ocurre porque son características que **la mayoría de las viviendas simplemente no tiene** (no todas tienen porche cerrado, revestimiento de mampostería, o una característica miscelánea con valor comercial). El IQR marca como "atípico" a cualquier vivienda que sí la tenga, pero no se trata de errores de datos: es la distribución esperada de una variable binaria/rara expresada en superficie o valor monetario. No se eliminan estos registros, ya que esa información (que la vivienda tenga o no cierta característica) es valiosa para el modelo.
+- **`Overall Cond` (252 outliers, 8,6%)** es un caso particular: al ser una variable **ordinal discreta** (escala 1 a 10) fuertemente concentrada en el valor "Average" (5), el método IQR —pensado para variables continuas— tiende a sobre-marcar los extremos de la escala como atípicos. Esto no implica un problema de calidad, sino una **limitación conocida del método IQR al aplicarse a variables discretas/ordinales**, y refuerza por qué la elección del método de detección de outliers debe considerar el tipo de cada variable (ver sección 9, Preparación de Datos).
+- **`SalePrice` (137 outliers, 4,68%)** confirma de forma cuantitativa y sistemática lo que ya se había observado visualmente en la sección 8.3 (distribución asimétrica) y 8.6 (outliers evidentes de viviendas grandes y baratas): existe un grupo de viviendas de alto valor que se aleja del comportamiento típico del mercado.
+
+**Conclusión:** la presencia de outliers según IQR es generalizada en el dataset, pero mayormente **explicable por la naturaleza de cada variable** y no por errores de registro. Por esta razón, la estrategia de tratamiento no es eliminar sistemáticamente todos estos valores, sino evaluarlos caso a caso: se mantuvieron como información válida las variables zero-inflated y `Overall Cond`, y solo se removieron (sección 9.1) los dos casos de outliers evidentes en `SalePrice` vs. `Gr Liv Area` identificados en el EDA inicial, por corresponder a condiciones de venta no representativas del mercado.
 
 ---
 
