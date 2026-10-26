@@ -215,6 +215,19 @@ Las variables numéricas con mayor correlación positiva con el precio de venta 
 - `Garage Area` (área del garage): 0.62
 - `Total Bsmt SF` (área total del sótano): 0.61
 
+### Correlaciones no lineales y multicolinealidad entre predictoras
+
+**Limitación de Pearson.** El coeficiente de Pearson mide únicamente asociación *lineal* y es sensible a valores extremos. Como varias variables del dataset son ordinales (`Overall Qual`, `Overall Cond`), discretas o están concentradas en cero, se complementó el análisis con dos coeficientes basados en rangos:
+
+- **Spearman (ρ):** es el Pearson aplicado a los rangos; detecta cualquier relación *monótona* (aunque no sea lineal), es robusto a outliers y no cambia al aplicar `log` a la variable objetivo.
+- **Kendall (τ):** mide la proporción de pares de observaciones concordantes vs. discordantes; maneja mejor los empates (frecuentes en variables discretas) y tiende a tener magnitud menor que Spearman, por lo que se comparan los *rankings* y no los valores absolutos.
+
+Se excluyó `MS SubClass` de este análisis, ya que es un código nominal almacenado como número y su correlación no tiene interpretación.
+
+**Multicolinealidad entre predictoras.** Se evaluó con tres herramientas complementarias: (1) matriz de correlación de Spearman entre las 35 variables numéricas predictoras, (2) listado de pares con |ρ| ≥ 0.80 (alta) y 0.60–0.80 (moderada-alta), y (3) el **Factor de Inflación de la Varianza (VIF)**, que mide cuánto de la varianza de una variable es explicable por todas las demás (VIF = 1 / (1 − R²ⱼ)). Se usó la regla habitual: VIF ≤ 5 bajo, 5–10 moderado, > 10 alto.
+
+**Por qué importa según el modelo.** En la Regresión Lineal (Ridge/Lasso) la multicolinealidad vuelve inestables los coeficientes: Ridge la reparte entre las variables correlacionadas y Lasso tiende a conservar solo una de ellas. En Random Forest y Gradient Boosting el poder predictivo casi no se ve afectado, pero la *importancia de variables* se diluye entre variables redundantes, lo que dificulta su interpretación para el negocio.
+
 ### Detección sistemática de outliers (todas las variables numéricas)
 
 Para evitar limitar el análisis a solo un par de variables elegidas de forma manual, se aplicó el método del **rango intercuartílico (IQR)** a las **37 variables numéricas** del dataset: un valor se considera atípico si cae fuera de `[Q1 - 1.5×IQR, Q3 + 1.5×IQR]`.
