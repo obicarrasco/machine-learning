@@ -51,6 +51,7 @@ Se desarrolló un modelo de regresión para predecir el precio de venta de vivie
 14. [Interpretación y recomendaciones de negocio](#14-interpretación-y-recomendaciones-de-negocio)
 15. [Limitaciones y mejoras](#15-limitaciones-y-posibles-mejoras)
 16. [Estructura del proyecto y cómo ejecutarlo](#16-estructura-del-proyecto-y-cómo-ejecutarlo)
+17. [Preguntas frecuentes para la defensa](#17-preguntas-frecuentes-para-la-defensa)
 
 ---
 
@@ -378,6 +379,8 @@ Esta clasificación coincide con la tabla 7.1, con una excepción: `Electrical` 
 **Asimetría de las continuas.** Hay 17 de 19 variables continuas con asimetría mayor a 0,75 en valor absoluto (por ejemplo `Misc Val` 20,5, `Pool Area` 17,4, `Lot Area` 13,7); solo `Total Bsmt SF` (0,34) y `Garage Area` (0,21) son aproximadamente simétricas.
 
 ### 9.5 Método de transformación según el tipo de variable
+
+> **Nota:** esta tabla describe el preprocesamiento **v2**, evaluado como alternativa en la sección 9.6. Los modelos finales usan el preprocesamiento v1 (todo One-Hot), por las razones indicadas en esa sección.
 
 | Tipo de variable | Transformación (v2) | Justificación |
 |---|---|---|
@@ -756,3 +759,68 @@ El proyecto sigue **CRISP-DM**:
 | 6. Despliegue | Pipeline completo guardado y recomendaciones de uso y monitoreo | Secciones 12.8 y 14 |
 
 **Naturaleza iterativa de CRISP-DM — un ejemplo real:** al explorar la segmentación se observó que `Garage Yr Blt` contiene el valor `0` para las viviendas sin garage (decisión de imputación de la sección 9.1). Ese `0` no es un año real y generaba un segmento artificial de "casas sin garage". Se volvió a la fase de preparación y se excluyó esa variable **solo de la segmentación**, sin tocar el resto del procesamiento.
+
+### Equivalencia de numeración entre el README y el notebook
+
+| Tema | README | Notebook |
+|---|---|---|
+| Correlaciones y multicolinealidad | 8.3 y 8.4 | 8.4.1 y 8.4.2 |
+| Outliers | 8.5 | 8.6 |
+| Limpieza e imputación | 9.1 | 9.2 y 9.3 |
+| Transformación del objetivo | 9.2 | 9.4 |
+| Pipeline | 9.3 | 9.6 y 9.7 |
+| Clasificación por tipo | 9.4 | 9.9 |
+| Preprocesamiento v2 y ablación | 9.5 y 9.6 | 9.10 |
+| PCA | 9.7 | 9.11 |
+| Modelos | 10 y 11 | 17.1 a 17.4 |
+| Evaluación y selección | 12.1 a 12.5 | 18 |
+| Subconjuntos de datos | 12.6 | celdas posteriores a 18.8 |
+| K-Means | 11.3 y 12.7 | 19 |
+
+---
+
+## 17. Preguntas frecuentes para la defensa
+
+Respuestas breves a las preguntas más probables. Cada una indica la sección donde está la evidencia.
+
+**1. ¿Por qué se usaron esas variables?**
+No hubo selección manual: se usan las 79 predictoras y solo se excluyen `Order` y `PID` (identificadores sin valor predictivo). Cada algoritmo pondera lo que importa: Lasso anula 232 de las 314 columnas, y en los modelos de árboles 26 columnas (Random Forest) y 20 (Gradient Boosting) acumulan el 90% de la importancia. Además, se probó quitar variables correlacionadas y ningún modelo mejoró. *Evidencia: 7.1, 11.1 y 12.6.*
+
+**2. ¿Por qué esas transformaciones?**
+Cada una responde al tipo de variable: `log1p` para las continuas asimétricas (17 de 19 con asimetría > 0,75) y para el precio, estandarización para las numéricas, codificación ordinal para las ordinales y One-Hot para las nominales. La ablación mostró que esta estrategia (v2) reduce el RMSE de validación cruzada ≈ 3% (0,1229 → 0,1192) con 98 columnas menos. Los modelos finales usan v1 para que los tres algoritmos reciban exactamente las mismas variables y la comparación sea justa; v2 queda como mejora posible. *Evidencia: 9.2, 9.5 y 9.6.*
+
+**3. ¿Por qué no se usó PCA?**
+Porque no mejora el error y se pierde la interpretabilidad. Con PCA el RMSE de validación cruzada es 0,1237 a 0,1259, frente a 0,1229 sin reducir (v1). Además, la regularización de Ridge y Lasso ya controla el exceso de columnas. PCA se usa solo para visualizar los segmentos de K-Means. *Evidencia: 9.7.*
+
+**4. ¿Qué significan las correlaciones altas entre predictoras?**
+Indican variables redundantes: hay 4 pares con |ρ| ≥ 0,80 (por ejemplo `Garage Cars`–`Garage Area`, 0,86) y dos identidades exactas (`Gr Liv Area` y `Total Bsmt SF` son la suma de sus componentes). No dañan la predicción, pero impiden leer los coeficientes individuales de forma aislada. Al eliminarlas, ningún modelo mejoró; Ridge casi no cambió (+0,6%) gracias a su regularización. *Evidencia: 8.4, 12.4 y 12.6.*
+
+**5. ¿Por qué Spearman y Kendall además de Pearson?**
+Pearson mide solo relación lineal y es sensible a valores extremos. Spearman y Kendall detectan relaciones monótonas no lineales: por ejemplo, `Year Built` pasa de 0,56 (Pearson) a 0,68 (Spearman) y `Lot Area` de 0,27 a 0,43. *Evidencia: 8.3.*
+
+**6. ¿Por qué no se eliminaron los outliers?**
+La mayoría son legítimos: variables concentradas en cero, `Overall Cond` (ordinal) y viviendas de lujo. Solo se eliminaron 3 viviendas con `Gr Liv Area` > 4.000 pies² y precio < US$ 300.000 (ventas `Partial` en `Edwards`, no representativas). Al entrenar sin outliers, el RMSE empeoró entre +17% y +39% en los tres modelos. *Evidencia: 8.5 y 12.6.*
+
+**7. ¿Por qué esas métricas y no otras?**
+RMSE penaliza los errores grandes y está en dólares; MAE es el error típico, menos sensible a extremos; R² mide el ajuste global y permite comparar modelos; MAPE expresa el error en porcentaje, que es como habla el negocio inmobiliario. Se calculan en dólares revirtiendo el logaritmo con `expm1`, y los umbrales se definieron en la Evaluación 1, antes de entrenar. *Evidencia: secciones 5, 6 y 12.1.*
+
+**8. ¿Por qué Ridge y no Gradient Boosting?**
+Las diferencias son pequeñas, pero Ridge tiene menor RMSE en prueba (US$ 18.170 frente a 19.246) y en validación cruzada (0,1229 frente a 0,1244), de modo que ambas evidencias coinciden. Además, sobreajusta menos (R² 0,944 en entrenamiento y 0,959 en prueba, frente a 0,988 y 0,954) y es el más explicable. Gradient Boosting gana levemente en MAE y MAPE, y supera a Ridge si se entrena sin outliers. *Evidencia: 12.3 y 12.6.*
+
+**9. ¿Se cumple el criterio de salida?**
+Sí. Los tres modelos cumplen los cuatro umbrales en la primera iteración. Ridge logra R² 0,959, RMSE US$ 18.170, MAE US$ 12.574 y MAPE 7,15%. *Evidencia: 12.2.*
+
+**10. ¿Cómo se evitó la fuga de datos y el sobreajuste?**
+El preprocesamiento va dentro de un `Pipeline` que se reajusta en cada pliegue de la validación cruzada, los hiperparámetros se eligen solo con entrenamiento y el conjunto de prueba nunca participa. Se reconoce una fuga menor: la mediana de `Lot Frontage` por barrio y la eliminación de las 3 viviendas atípicas se calcularon antes de dividir; su efecto es mínimo. *Evidencia: 9.3, 10 y 15.*
+
+**11. ¿Qué sesgos tiene el modelo?**
+El riesgo real es la representatividad desigual entre barrios: `NAmes` concentra el 15,1% de las ventas y 7 barrios tienen menos de 30. No se observó que los barrios con menos ventas tengan más error (ρ = −0,24, p = 0,27), pero la evidencia es limitada: `ClearCr` llega a 12,5% de MAPE con solo 10 ventas de prueba. Además, `Neighborhood` puede actuar como variable proxy socioeconómica. *Evidencia: 12.5 y 13.1.*
+
+**12. ¿Para qué sirve K-Means y por qué k = 3?**
+Segmenta el mercado sin usar el precio y, aun así, los segmentos quedan con precios medianos distintos (US$ 128.000, 185.000 y 287.000), lo que valida el EDA. La silueta es máxima con k = 2 (0,327), pero solo separa dos bloques; con k = 3 (0,250) se obtiene una segmentación interpretable (económica, intermedia y premium). *Evidencia: 11.3 y 12.7.*
+
+**13. ¿Por qué `Garage Yr Blt` vale 0 en las casas sin garage?**
+Es una decisión de imputación (ausencia del atributo) que se mantiene en el pipeline, pero ese 0 no es un año real. Al detectarlo en la segmentación se excluyó la variable solo de K-Means. Revisar esta decisión figura entre las limitaciones. *Evidencia: 9.1, 15 y 16.*
+
+**14. ¿Qué se corrigió respecto de la Evaluación 1?**
+Ver la tabla "Qué se corrigió respecto de la Evaluación 1" al inicio del documento: estructura de entregables, especificación de las 79 variables, outliers sistemáticos, correlaciones no lineales y multicolinealidad, clasificación y transformación por tipo de variable, y corrección del argumento de sesgo.
