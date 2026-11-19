@@ -15,11 +15,10 @@ Se desarrolló un modelo de regresión para predecir el precio de venta de vivie
 | | Resultado |
 |---|---|
 | **Modelo final** | **Regresión Ridge** (`alpha` = 30), entrenada sobre `log1p(SalePrice)` |
-| **Desempeño en prueba** (586 viviendas no vistas) | R² 0,959 · RMSE US$ 18.198 · MAE US$ 12.590 · MAPE 7,15%
+| **Desempeño en prueba** (586 viviendas no vistas) | R² 0,959 · RMSE US$ 18.198 · MAE US$ 12.590 · MAPE 7,15% |
 | **Criterio de salida** | Los tres modelos cumplen los cuatro umbrales (R² ≥ 0,80; RMSE ≤ US$ 30.000; MAE ≤ US$ 20.000; MAPE ≤ 12%) |
-| **Hallazgo clave** | El modelo lineal regularizado compite de igual a igual con Gradient Boosting y es más estable y explicable |
-| **Riesgo principal** | Ridge compite con Gradient Boosting y con el ensamble Voting; el ensamble es ≈ 6% más preciso, pero esa ventaja no es consistente entre pliegues y Ridge es más estable, simple y explicable |
-| **Evaluación 3** | Optimización de hiperparámetros, ensambles (Bagging, Boosting y Voting), generalización con validación cruzada y selección justificada del modelo final (secciones 11.4, 11.5, 12.9 y 12.10) |
+| **Hallazgo clave** | Ridge compite con Gradient Boosting y con el ensamble Voting. El ensamble es ≈ 6% más preciso, pero esa ventaja no es consistente entre pliegues; Ridge es más estable, simple y explicable |
+| **Riesgo principal** | Desempeño no uniforme entre barrios (p. ej. `ClearCr`, MAPE 12,5%) y representatividad desigual de los datos por barrio |
 
 ### Qué se corrigió respecto de la Evaluación 1
 
@@ -482,10 +481,10 @@ K-Means **no** usa `SalePrice` (para poder validar los segmentos con el precio) 
 
 | Modelo | Hiperparámetros finales | RMSE CV (escala log) |
 |---|---|---|
-| Ridge | `alpha` = 30 | 0,1229 |
+| Ridge | `alpha` = 30 | 0,1227 |
 | Lasso | `alpha` = 0,001 | 0,1237 |
-| Random Forest | `n_estimators` = 200, `max_depth` = 15, `min_samples_leaf` = 2, `max_features` = 0,33 | 0,1375 |
-| Gradient Boosting | `n_estimators` = 500, `learning_rate` = 0,05, `max_depth` = 4, `subsample` = 0,8, `max_features` = 0,5 | 0,1244 |
+| Random Forest | `n_estimators` = 200, `max_depth` = 15, `min_samples_leaf` = 2, `max_features` = 0,33 | 0,1381 |
+| Gradient Boosting | `n_estimators` = 500, `learning_rate` = 0,05, `max_depth` = 4, `subsample` = 0,8, `max_features` = 0,5 | 0,1242 |
 | K-Means | `n_clusters` = 3, `n_init` = 20, `random_state` = 42 | silueta 0,2495 |
 
 Entre Ridge y Lasso se conserva **Ridge** por tener el menor RMSE de validación cruzada. Todos los procesos aleatorios usan `random_state` = 42.
@@ -562,17 +561,17 @@ El conjunto de prueba no participa en la elección. Cada modelo es un Pipeline, 
 
 | Modelo | R² | RMSE (US$) | MAE (US$) | MAPE (%) | R² entrenamiento |
 |---|---|---|---|---|---|
-| **Regresión Lineal (Ridge)** | **0,959** | **18.170** | 12.574 | 7,15 | 0,944 |
-| Random Forest | 0,921 | 25.294 | 14.726 | 7,88 | 0,976 |
-| Gradient Boosting | 0,954 | 19.246 | **12.406** | **6,84** | 0,988 |
+| **Regresión Lineal (Ridge)** | **0,959** | **18.198** | 12.590 | 7,15 | 0,944 |
+| Random Forest | 0,922 | 25.107 | 14.816 | 7,94 | 0,976 |
+| Gradient Boosting | 0,956 | 18.838 | **12.120** | **6,65** | 0,987 |
 
 ### 12.2 Contraste con los umbrales de aceptación
 
 | Métrica | Umbral | Ridge | Random Forest | Gradient Boosting |
 |---|---|---|---|---|
-| R² | ≥ 0,80 | 0,959 | 0,921 | 0,954 |
-| RMSE | ≤ US$ 30.000 | 18.170 | 25.294 | 19.246 |
-| MAE | ≤ US$ 20.000 | 12.574 | 14.726 | 12.406 |
+| R² | ≥ 0,80 | 0,959 | 0,922 | 0,956 |
+| RMSE | ≤ US$ 30.000 | 18.198 | 25.107 | 18.838 |
+| MAE | ≤ US$ 20.000 | 12.590 | 14.816 | 12.120 |
 | MAPE | ≤ 12% | 7,15% | 7,88% | 6,84% |
 
 **Los tres modelos cumplen los cuatro umbrales**, por lo que el criterio de salida de la Evaluación 1 se cumple en la primera iteración.
@@ -640,7 +639,7 @@ El error **absoluto** crece con el precio, pero el error **relativo** es mayor e
 
 Para saber si el desempeño depende de los outliers o de las variables redundantes, se reentrenaron los tres modelos (con los hiperparámetros ya elegidos, sin repetir la búsqueda) en cuatro escenarios, **sin modificar nunca el conjunto de prueba**:
 
-- **A) Base:** todos los datos.
+- **A) Base:** Esta prueba se ejecutó en la corrida de EV2; la base difiere levemente de la de 12.1.
 - **B) Sin outliers:** se excluyen del entrenamiento las filas atípicas (IQR 1,5) en `Lot Frontage`, `Lot Area`, `Gr Liv Area`, `1st Flr SF`, `Total Bsmt SF`, `Garage Area` y en el precio: 371 de 2.341 filas (15,8%). Los límites se calculan solo con entrenamiento.
 - **C) Sin variables correlacionadas:** de cada par de variables numéricas con correlación de Pearson ≥ 0,80 (en valor absoluto), se elimina la que tiene mayor correlación media con el resto (sin usar el precio). Se eliminaron `Gr Liv Area` (par con `TotRms AbvGrd`, r = 0,81) y `Garage Cars` (par con `Garage Area`, r = 0,89).
 - **D) B + C.**
@@ -800,7 +799,7 @@ Se evaluó con tres vistas: (1) brecha entre R² de entrenamiento y de prueba; (
 ## 15. Limitaciones y posibles mejoras
 
 **Limitaciones:**
-- - **Búsqueda de hiperparámetros acotada:** en EV3 se amplió la búsqueda de Random Forest (15 de 160 combinaciones) y de Gradient Boosting (12 de 972), con validación cruzada de 3 pliegues; la mejora fue mínima, pero 12 y 15 combinaciones siguen siendo una fracción pequeña del espacio.
+- **Búsqueda de hiperparámetros acotada:** en EV3 se amplió la búsqueda de Random Forest (15 de 160 combinaciones) y de Gradient Boosting (12 de 972), con validación cruzada de 3 pliegues; la mejora fue mínima, pero 12 y 15 combinaciones siguen siendo una fracción pequeña del espacio.
 - **Una sola partición train/test:** con 586 viviendas de prueba, diferencias pequeñas entre modelos (como Ridge frente a Gradient Boosting) no deben sobreinterpretarse; la validación cruzada apunta en la misma dirección.
 - **División aleatoria, no temporal:** el dataset cubre 2006-2010; una validación por fecha de venta sería más exigente.
 - **Fuga de información menor:** la mediana de `Lot Frontage` por barrio y la eliminación de las 3 viviendas atípicas se calcularon antes de dividir en entrenamiento y prueba. El efecto es mínimo.
@@ -846,7 +845,8 @@ housing-prices-ml/
    - La ejecución completa toma aproximadamente 20 a 30 minutos. Lo más lento son el Random Forest (≈ 3 minutos) y la validación cruzada repetida de las pruebas con subconjuntos.
    - Si se vuelven a leer `X_train.csv` / `X_test.csv`, usar `pd.read_csv(..., keep_default_na=False)`: de lo contrario pandas interpreta el texto `"None"` como nulo y se pierde la distinción entre "sin garage" y "dato faltante".
    - Las búsquedas ampliadas (celdas 22 y 24) son lo más lento.
-
+- 4. **Modelamiento** | Tres modelos supervisados con ajuste de hiperparámetros, ensambles y segmentación con K-Means | Secciones 10 y 11 (incl. 11.4 y 11.5) |
+- 5. **Evaluación** | Métricas en prueba, umbrales, subconjuntos, generalización, selección, análisis por barrio, tramo de precio y segmento | Sección 12 (incl. 12.9 y 12.10) |
 ### Metodología
 
 El proyecto sigue **CRISP-DM**:
