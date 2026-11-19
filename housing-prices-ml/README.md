@@ -1,10 +1,10 @@
 # Predicción de Precios de Viviendas (Ames Housing Dataset)
 
-**Evaluación Parcial N°1 (con correcciones) + Evaluación Parcial N°2 — MLY1101 Machine Learning**  
+**Evaluación Parcial N°1 (con correcciones) + N°2 + N°3 — MLY1101 Machine Learning**  
 **Caso B: Predicción de precios de viviendas (Housing Prices)**
 
 **Autor(es):** Nicolas Carrasco, Martin Corvalan, Martin Naranjo  
-**Fecha:** 10-09-2026 · **Última actualización:** 26-10-2026
+**Fecha:** 10-09-2026 · **Última actualización:** 18-11-2026
 
 ---
 
@@ -15,10 +15,11 @@ Se desarrolló un modelo de regresión para predecir el precio de venta de vivie
 | | Resultado |
 |---|---|
 | **Modelo final** | **Regresión Ridge** (`alpha` = 30), entrenada sobre `log1p(SalePrice)` |
-| **Desempeño en prueba** (586 viviendas no vistas) | R² 0,959 · RMSE US$ 18.170 · MAE US$ 12.574 · MAPE 7,15% |
+| **Desempeño en prueba** (586 viviendas no vistas) | R² 0,959 · RMSE US$ 18.198 · MAE US$ 12.590 · MAPE 7,15%
 | **Criterio de salida** | Los tres modelos cumplen los cuatro umbrales (R² ≥ 0,80; RMSE ≤ US$ 30.000; MAE ≤ US$ 20.000; MAPE ≤ 12%) |
 | **Hallazgo clave** | El modelo lineal regularizado compite de igual a igual con Gradient Boosting y es más estable y explicable |
-| **Riesgo principal** | Desempeño no uniforme entre barrios (p. ej. `ClearCr`, MAPE 12,5%) y representatividad desigual de los datos por barrio |
+| **Riesgo principal** | Ridge compite con Gradient Boosting y con el ensamble Voting; el ensamble es ≈ 6% más preciso, pero esa ventaja no es consistente entre pliegues y Ridge es más estable, simple y explicable |
+| **Evaluación 3** | Optimización de hiperparámetros, ensambles (Bagging, Boosting y Voting), generalización con validación cruzada y selección justificada del modelo final (secciones 11.4, 11.5, 12.9 y 12.10) |
 
 ### Qué se corrigió respecto de la Evaluación 1
 
@@ -501,6 +502,58 @@ La silueta es máxima en k = 2, pero esa partición solo separa dos grandes bloq
 
 ![Codo y silueta de K-Means](images/kmeans_codo_silueta.png)
 
+### 11.4 Optimización de hiperparámetros (EV3)
+
+Esquema común: validación cruzada de 3 pliegues sobre el conjunto de entrenamiento (semilla 42), minimizando el RMSE sobre log1p(SalePrice). 
+El conjunto de prueba no participa en la elección. Cada modelo es un Pipeline, de modo que el preprocesamiento se reajusta dentro de cada pliegue.
+
+| Modelo | Búsqueda en EV2 | Búsqueda ampliada (EV3) | Configuración final | RMSE CV (log) |
+|---|---|---|---|---|
+| Ridge | `GridSearchCV`, 7 de 7 valores de `alpha` | no se amplió | `alpha` = 30 | 0,1227 |
+| Random Forest | `RandomizedSearchCV`, 5 de 27 combinaciones | `RandomizedSearchCV`, 15 de 160 | EV2 (`max_depth` 15, `min_samples_leaf` 2, `max_features` 0,33, `n_estimators` 200) | 0,1381 (EV2) / 0,1373 (ampliada) |
+| Gradient Boosting | `GridSearchCV`, 4 de 4 (`n_estimators` × `max_depth`) | `RandomizedSearchCV`, 12 de 972 (6 hiperparámetros) | EV2 (`n_estimators` 500, `learning_rate` 0,05, `max_depth` 4, `subsample` 0,8, `max_features` 0,5) | 0,1242 (EV2) / 0,1229 (ampliada) |
+| Voting | no aplica | pesos enteros 0 a 3, sobre predicciones fuera de pliegue del entrenamiento | (1, 0, 1) | 0,1186 |
+
+**Antes vs. después de optimizar** (mismo CV y mismo conjunto de prueba):
+
+| Modelo | RMSE CV (log) | RMSE test (US$) | MAE test (US$) |
+|---|---|---|---|
+| Gradient Boosting, valores por defecto | 0,1308 | 21.583 | 13.741 |
+| Gradient Boosting, EV2 | 0,1242 | 18.838 | 12.120 |
+| Gradient Boosting, búsqueda ampliada | 0,1229 | 19.039 | 12.385 |
+| Random Forest, valores por defecto | 0,1429 | 25.942 | 15.951 |
+| Random Forest, EV2 | 0,1381 | 25.107 | 14.816 |
+| Random Forest, búsqueda ampliada | 0,1373 | 24.762 | 14.803 |
+
+**Conclusiones:**
+- Optimizar frente a los valores por defecto sí aportó: Gradient Boosting −12,7% de RMSE test; Random Forest −3,2%.
+- La búsqueda ampliada aportó poco: la mejora en CV (≈ 0,001) es menor que la desviación entre pliegues (≈ 0,007) y el signo en prueba no es consistente (Gradient Boosting empeora, Random Forest mejora levemente). Las mejores configuraciones de Gradient Boosting forman una meseta (0,1229 a 0,1235), lo que sugiere que el desempeño lo limitan los datos y no los hiperparámetros.
+- Se conservaron los hiperparámetros de EV2 por no haber evidencia consistente de mejora fuera de muestra.
+- Justificación de cada hiperparámetro: `alpha` controla la regularización L2 (314 columnas para 2.341 filas y variables muy correlacionadas; el óptimo 30 queda en el interior del rango explorado); en Random Forest, `max_depth`, `min_samples_leaf` y `max_features` controlan el sobreajuste y decorrelacionan los árboles; en Gradient Boosting, `learning_rate` bajo con más árboles, `max_depth` 4, `subsample` y `max_features` actúan como regularización.
+
+### 11.5 Técnicas de ensamble (EV3)
+
+| Técnica | Modelo | Cómo reduce el error |
+|---|---|---|
+| **Bagging** | Random Forest | Entrena árboles independientes sobre muestras bootstrap y promedia: reduce la **varianza** |
+| **Boosting** | Gradient Boosting | Entrena árboles en secuencia, cada uno corrige los residuos del anterior: reduce el **sesgo** |
+| **Voting** | `VotingRegressor` (Ridge + RF + GB) | Promedia ponderado modelos de naturaleza distinta |
+
+**Aporte frente a un modelo individual** (conjunto de prueba, 586 viviendas):
+
+| Modelo | R² train | R² test | Brecha | RMSE test (US$) | MAE (US$) | MAPE |
+|---|---|---|---|---|---|---|
+| Árbol individual | 1,000 | 0,841 | 0,159 | 35.844 | 24.001 | 13,75% |
+| Random Forest (bagging) | 0,976 | 0,922 | 0,054 | 25.107 | 14.816 | 7,94% |
+| Gradient Boosting (boosting) | 0,987 | 0,956 | 0,032 | 18.838 | 12.120 | 6,65% |
+| Ridge | 0,944 | 0,959 | −0,015 | 18.198 | 12.590 | 7,15% |
+| Voting, pesos iguales (1-1-1) | 0,978 | 0,958 | 0,020 | 18.439 | 11.836 | 6,52% |
+| **Voting optimizado (1-0-1)** | 0,973 | **0,964** | 0,009 | **17.015** | **11.327** | **6,38%** |
+
+- Un árbol individual memoriza el entrenamiento y no cumple los umbrales de RMSE, MAE ni MAPE. Random Forest reduce su RMSE test un 30% y Gradient Boosting un 47%.
+- **Pesos del Voting:** se eligieron con predicciones fuera de pliegue (3 pliegues) usando solo el entrenamiento; el conjunto de prueba se usó una sola vez para reportar. La búsqueda asignó **peso 0 a Random Forest**: es el modelo base más débil y se parece a Gradient Boosting, por lo que no aporta información nueva. Con pesos iguales el ensamble no mejora el RMSE test frente a Ridge (18.439 contra 18.198).
+- El ensamble Ridge + Gradient Boosting combina un modelo lineal y uno de árboles, cuyos errores son de naturaleza distinta, y por eso se compensan: −6,5% de RMSE test frente a Ridge y −9,7% frente a Gradient Boosting.
+
 ---
 
 ## 12. Evaluación y selección del modelo
@@ -517,10 +570,10 @@ La silueta es máxima en k = 2, pero esa partición solo separa dos grandes bloq
 
 | Métrica | Umbral | Ridge | Random Forest | Gradient Boosting |
 |---|---|---|---|---|
-| R² | ≥ 0,80 | ✅ 0,959 | ✅ 0,921 | ✅ 0,954 |
-| RMSE | ≤ US$ 30.000 | ✅ 18.170 | ✅ 25.294 | ✅ 19.246 |
-| MAE | ≤ US$ 20.000 | ✅ 12.574 | ✅ 14.726 | ✅ 12.406 |
-| MAPE | ≤ 12% | ✅ 7,15% | ✅ 7,88% | ✅ 6,84% |
+| R² | ≥ 0,80 | 0,959 | 0,921 | 0,954 |
+| RMSE | ≤ US$ 30.000 | 18.170 | 25.294 | 19.246 |
+| MAE | ≤ US$ 20.000 | 12.574 | 14.726 | 12.406 |
+| MAPE | ≤ 12% | 7,15% | 7,88% | 6,84% |
 
 **Los tres modelos cumplen los cuatro umbrales**, por lo que el criterio de salida de la Evaluación 1 se cumple en la primera iteración.
 
@@ -530,12 +583,7 @@ La silueta es máxima en k = 2, pero esa partición solo separa dos grandes bloq
 
 ### 12.3 Modelo seleccionado: Regresión Ridge
 
-**Regla de selección:** entre los modelos que cumplen los cuatro umbrales, se elige el de **menor RMSE** en el conjunto de prueba, la métrica que más penaliza los errores grandes de tasación.
-
-- **Ridge explica ≈ 96% de la variabilidad del precio** en viviendas que nunca vio. Su RMSE (US$ 18.170) está ≈ 39% por debajo del límite y equivale a ≈ 11% del precio mediano; su MAE (US$ 12.574) está ≈ 37% por debajo del límite. **La predicción típica se equivoca en torno a US$ 12.600, es decir, ≈ 7% del valor de la vivienda.**
-- **¿Por qué Ridge y no Gradient Boosting?** Las diferencias son pequeñas: Gradient Boosting tiene un MAE (US$ 12.406) y un MAPE (6,84%) marginalmente menores, pero Ridge logra **menor RMSE en el conjunto de prueba** (US$ 18.170 frente a US$ 19.246) **y también en validación cruzada** (0,1229 frente a 0,1244 en escala logarítmica), de modo que ambas fuentes de evidencia coinciden. Además, Gradient Boosting muestra **mayor sobreajuste** (R² 0,988 en entrenamiento frente a 0,954 en prueba), mientras que Ridge es estable (0,944 frente a 0,959). Y Ridge es el modelo **más explicable**, prioridad planteada en la Evaluación 1.
-- **Random Forest** es el de menor desempeño: cumple los umbrales con el menor margen y muestra sobreajuste (R² 0,976 en entrenamiento frente a 0,921 en prueba).
-- **Conclusión:** en este dataset, tras la transformación logarítmica y la preparación de datos, el modelo simple y regularizado **compite de igual a igual con el más complejo**. Esto respalda haber incluido la regresión lineal como línea base seria.
+*"La selección final del modelo, con los resultados de generalización y de los ensambles, se justifica en la sección [12.10](#1210-selección-y-justificación-del-modelo-óptimo-ev3)."*
 
 ### 12.4 Variables más influyentes
 
@@ -652,6 +700,56 @@ El modelo se comporta de forma bastante pareja en términos relativos; el error 
 
 El modelo final se guarda como **pipeline completo** (preprocesamiento + modelo) en `models/modelo_final_housing.pkl`, de modo que se puede predecir directamente a partir de las columnas originales de una vivienda. Se verificó la recarga con una vivienda del conjunto de prueba (predicho US$ 313.073; real US$ 298.236). **No se despliega en producción**: queda preparado para hacerlo.
 
+
+### 12.9 Generalización (EV3)
+
+Se evaluó con tres vistas: (1) brecha entre R² de entrenamiento y de prueba; (2) validación cruzada de 5 pliegues dentro del entrenamiento (cada pliegue reajusta el preprocesamiento); (3) cumplimiento de los umbrales de EV1. Criterio orientativo de la brecha (R² train − R² test): < 0,02 muy bien; < 0,04 leve; < 0,07 moderada; ≥ 0,07 alta.
+
+| Modelo | R² train | R² test | Brecha | R² CV (5) | RMSE CV (US$) | Brecha en CV |
+|---|---|---|---|---|---|---|
+| Árbol individual | 1,000 | 0,841 | 0,159 | 0,759 | 37.857 | 0,241 |
+| Ridge | 0,944 | 0,959 | −0,015 | 0,927 | 20.663 | 0,018 |
+| Random Forest | 0,976 | 0,922 | 0,054 | 0,893 | 25.254 | 0,083 |
+| Gradient Boosting | 0,987 | 0,956 | 0,032 | 0,923 | 21.354 | 0,066 |
+| Voting 1-1-1 | 0,978 | 0,958 | 0,020 | 0,929 | 20.587 | 0,050 |
+| Voting optimizado | 0,973 | 0,964 | 0,009 | 0,936 | 19.486 | 0,039 |
+
+![Generalización: entrenamiento, validación cruzada y prueba](images/generalizacion_train_cv_test.png)
+
+**Lectura:**
+- El árbol individual sobreajusta con claridad (brecha 0,159 en prueba y 0,241 en CV).
+- Ridge tiene la menor brecha en CV (0,018) y en prueba es incluso negativa (−0,015): el conjunto de prueba resultó algo más fácil que el promedio del entrenamiento, por lo que esa cifra no debe leerse como "mejor que perfecto".
+- Random Forest y Gradient Boosting muestran brecha leve a moderada; el Voting reduce la de ambos.
+- La dispersión entre pliegues es baja en el ensamble (RMSE CV: desviación de US$ 722 en el Voting optimizado, 1.719 en Gradient Boosting y 2.004 en Ridge).
+
+**Umbrales de EV1 (R² ≥ 0,80; RMSE ≤ US$ 30.000; MAE ≤ US$ 20.000; MAPE ≤ 12%):** todos los modelos, salvo el árbol individual, los cumplen. El árbol falla RMSE, MAE y MAPE.
+
+### 12.10 Selección y justificación del modelo óptimo (EV3)
+
+**Decisión: Ridge (`alpha` = 30), entrenado sobre `log1p(SalePrice)`.** El ensamble Voting optimizado (1-0-1) queda como alternativa documentada.
+
+1. **Ningún criterio de umbral discrimina:** todos los candidatos excepto el árbol cumplen los cuatro umbrales, así que la decisión se toma con los criterios siguientes.
+2. **Ridge y el Voting optimizado son los dos mejores.** El Voting tiene el menor error: RMSE test US$ 17.015 contra 18.198 (−6,5%) y RMSE CV US$ 19.486 contra 20.663 (−5,7%).
+3. **Pero esa ventaja es modesta y poco sólida:**
+   - *Magnitud:* ≈ US$ 1.200, frente a un MAE de ≈ US$ 12.600 en Ridge. No cambia el orden de magnitud del error.
+   - *Consistencia:* en la comparación pareada por pliegues el Voting gana en 4 de 5 pliegues (ventaja media US$ 1.177), pero la ventaja se concentra en un pliegue (pliegue 4: +US$ 5.440); en los otros tres es de US$ 398 a 724 y en el pliegue 1 pierde por US$ 1.151.
+
+| Pliegue | RMSE Ridge (US$) | RMSE Voting opt. (US$) | Ventaja del Voting (US$) |
+|---|---|---|---|
+| 1 | 18.301 | 19.452 | −1.151 |
+| 2 | 21.001 | 20.277 | +724 |
+| 3 | 19.967 | 19.493 | +475 |
+| 4 | 23.781 | 18.341 | +5.440 |
+| 5 | 20.264 | 19.866 | +398 |
+
+   - *Sesgo a favor del ensamble:* sus pesos se eligieron con los mismos datos de entrenamiento que usa la validación cruzada, de modo que su resultado de CV está algo favorecido.
+   - *Reproducibilidad:* el RMSE de Ridge fue idéntico en dos ejecuciones completas (US$ 18.198); el de los modelos con árboles cambió (Gradient Boosting 19.701 → 18.838; Voting optimizado 17.347 → 17.015).
+4. **Ridge generaliza bien y es explicable:** menor brecha en CV (0,018), sin sobreajuste en prueba, y cada coeficiente se lee como cambio porcentual del precio, lo que permite a un tasador o auditor revisarlo (prioridad planteada en EV1).
+5. **Es más simple de mantener:** un modelo lineal, rápido de entrenar, frente a dos modelos (uno de 500 árboles) para una mejora de ≈ 6%.
+
+**Qué haría cambiar la decisión:** (a) que el negocio priorice el error mínimo por sobre la explicabilidad; (b) que una validación cruzada repetida o datos nuevos confirmen una ventaja del ensamble mayor y consistente en todos los pliegues.
+
+
 ---
 
 ## 13. Análisis de sesgos, ética y privacidad
@@ -702,7 +800,7 @@ El modelo final se guarda como **pipeline completo** (preprocesamiento + modelo)
 ## 15. Limitaciones y posibles mejoras
 
 **Limitaciones:**
-- **Búsqueda de hiperparámetros acotada:** cuadrículas pequeñas y validación cruzada de 3 pliegues, para que el notebook se ejecute en tiempos razonables. Una búsqueda más amplia podría mejorar sobre todo a Random Forest y Gradient Boosting.
+- - **Búsqueda de hiperparámetros acotada:** en EV3 se amplió la búsqueda de Random Forest (15 de 160 combinaciones) y de Gradient Boosting (12 de 972), con validación cruzada de 3 pliegues; la mejora fue mínima, pero 12 y 15 combinaciones siguen siendo una fracción pequeña del espacio.
 - **Una sola partición train/test:** con 586 viviendas de prueba, diferencias pequeñas entre modelos (como Ridge frente a Gradient Boosting) no deben sobreinterpretarse; la validación cruzada apunta en la misma dirección.
 - **División aleatoria, no temporal:** el dataset cubre 2006-2010; una validación por fecha de venta sería más exigente.
 - **Fuga de información menor:** la mediana de `Lot Frontage` por barrio y la eliminación de las 3 viviendas atípicas se calcularon antes de dividir en entrenamiento y prueba. El efecto es mínimo.
@@ -711,6 +809,9 @@ El modelo final se guarda como **pipeline completo** (preprocesamiento + modelo)
 - **Muestras pequeñas por barrio:** el error por barrio se calcula con pocas ventas de prueba; los barrios con menos de 8 se omiten de los gráficos.
 - **Segmentos solapados:** la silueta moderada indica fronteras difusas entre segmentos.
 - **Prueba de outliers:** el escenario "sin outliers" mezcla filas atípicas en variables y en precio, y se evalúa sobre viviendas de prueba que sí incluyen casos extremos.
+- **Ventaja del ensamble no confirmada:** el Voting optimizado mejora ≈ 6% el RMSE, pero con ventaja concentrada en un pliegue y pesos elegidos con los mismos datos de entrenamiento; falta una validación cruzada repetida o datos nuevos.
+- **Variabilidad entre ejecuciones:** los modelos con árboles cambian unos cientos de dólares entre ejecuciones y versiones de scikit-learn; Ridge es determinista.
+- **Brecha negativa de Ridge:** el conjunto de prueba resultó algo más fácil que el entrenamiento; con otra partición la brecha podría ser positiva.
 
 **Posibles mejoras:** adoptar el preprocesamiento v2; validación cruzada repetida con una búsqueda más amplia; probar XGBoost o LightGBM; modelos separados por segmento; interpretabilidad con SHAP; intervalos de predicción en lugar de predicciones puntuales; y validación temporal.
 
@@ -725,7 +826,7 @@ housing-prices-ml/
 ├── .gitignore         <- archivos a ignorar en Git
 ├── data/              <- Ames_Iowa_Housing_Dataset.csv (entrada) y archivos generados
 │                         (housing_clean.csv, resultados_modelos.csv, X_train.csv, ...)
-├── notebooks/         <- Housing_EV1_EV2.ipynb (notebook principal)
+├── notebooks/         <- Housing_EV1_EV2.ipynb (notebook principal) y Housing_EV3.ipynb (complementa a `Housing_EV1_EV2.ipynb`)
 ├── models/            <- preprocessor_pipeline.pkl y modelo_final_housing.pkl (se generan al ejecutar)
 └── images/            <- gráficos exportados (se generan al ejecutar)
 ```
@@ -739,11 +840,12 @@ housing-prices-ml/
 2. **Colocar el dataset:** asegurarse de que `Ames_Iowa_Housing_Dataset.csv` esté en la carpeta `data/`.
 3. **Ejecutar el notebook** (también funciona en Google Colab subiendo la carpeta del proyecto y ubicándose en `notebooks/`):
    ```bash
-   jupyter notebook notebooks/Housing_EV1_EV2.ipynb
+   jupyter notebook notebooks/Housing_EV3.ipynb
    ```
    - El notebook debe ejecutarse **de arriba hacia abajo**: la Parte 2 usa las variables que construye la Parte 1.
    - La ejecución completa toma aproximadamente 20 a 30 minutos. Lo más lento son el Random Forest (≈ 3 minutos) y la validación cruzada repetida de las pruebas con subconjuntos.
    - Si se vuelven a leer `X_train.csv` / `X_test.csv`, usar `pd.read_csv(..., keep_default_na=False)`: de lo contrario pandas interpreta el texto `"None"` como nulo y se pierde la distinción entre "sin garage" y "dato faltante".
+   - Las búsquedas ampliadas (celdas 22 y 24) son lo más lento.
 
 ### Metodología
 
@@ -754,7 +856,7 @@ El proyecto sigue **CRISP-DM**:
 | 1. Comprensión del negocio | Problema de tasación, objetivos, métricas y criterio de salida cuantitativo | Secciones 1 a 6 |
 | 2. Comprensión de los datos | Fuente, calidad (duplicados, nulos, outliers), correlaciones y multicolinealidad | Secciones 7 y 8 |
 | 3. Preparación de los datos | Limpieza, imputación diferenciada, clasificación por tipo, transformación del objetivo, pipeline, comparación v1/v2 y PCA | Sección 9 |
-| 4. Modelamiento | Tres modelos supervisados con ajuste de hiperparámetros y segmentación con K-Means | Secciones 10 y 11 |
+| 4. Modelamiento | Tres modelos supervisados con ajuste de hiperparámetros y segmentación con K-Means | "Secciones 10, 11 (incl. 11.4 y 11.5)"; fila 5 Evaluación: "Sección 12 (incl. 12.9 y 12.10)".|
 | 5. Evaluación | Métricas en prueba, umbrales, subconjuntos, análisis por barrio, tramo de precio y segmento | Sección 12 |
 | 6. Despliegue | Pipeline completo guardado y recomendaciones de uso y monitoreo | Secciones 12.8 y 14 |
 
@@ -776,5 +878,8 @@ El proyecto sigue **CRISP-DM**:
 | Evaluación y selección | 12.1 a 12.5 | 18 |
 | Subconjuntos de datos | 12.6 | celdas posteriores a 18.8 |
 | K-Means | 11.3 y 12.7 | 19 |
-
+| Hiperparámetros | 11.4 | Paso 3 |
+| Ensambles | 11.5 | Paso 2 |
+| Generalización | 12.9 | Paso 4 |
+| Selección | 12.10 | Paso 5 |
 ---
